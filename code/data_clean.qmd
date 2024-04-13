@@ -1,0 +1,78 @@
+---
+title: "DSAN-5300-Project-Group2"
+author: "Yinhong Chen"
+date: last-modified
+date-format: long
+editor: visual
+format:
+   html: 
+      toc: true
+      code-copy: true
+      code-overflow: wrap
+execute:
+    echo: true
+    warning: false
+    message: false
+    freeze: auto
+---
+
+# DSAN-5300-Project-Group2
+
+## Data Clean
+
+## Risk Estimation Clean
+
+```{r}
+# Load library for R
+library(tidyverse)
+```
+
+```{r}
+# Read the txt file
+data <- read.table('../dataset/risk.txt', header = FALSE, sep = "", na.strings = "NA")
+# Assign the column names
+colnames(data) <- c("menopaus", "agegrp", "density", "race", "Hispanic", "bmi", "agefirst", 
+                    "nrelbc", "brstproc", "lastmamm", "surgmeno", "hrt", "invasive", 
+                    "cancer", "training", "count")
+head(data)
+```
+
+```{r}
+# Check for the NA values
+na_count <- sum(is.na(data))
+print(na_count)
+```
+
+```{r}
+# Check the data type for each column
+str(data)
+```
+
+```{r}
+# Save the data to a CSV file
+write.csv(data, "../dataset/risk_estimation_clean.csv", row.names = FALSE)
+```
+
+## Risk Factors Clean
+
+```{r}
+# Import the csv
+factor <- read.csv('../dataset/bcsc_risk_factors_summarized1_092020.csv')
+head(factor)
+```
+
+```{r}
+# Check the data type for each column
+str(data)
+```
+
+```{r}
+# Check for the NA values
+na_count <- sum(is.na(factor))
+print(na_count)
+```
+
+```{r}
+# Save the data to a CSV file
+write.csv(factor, "../dataset/risk_factor_clean.csv", row.names = FALSE)
+```
