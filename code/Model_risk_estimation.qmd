@@ -1,0 +1,95 @@
+---
+title: "DSAN-5300-Project-Group2"
+author: "Yinhong Chen"
+date: last-modified
+date-format: long
+editor: visual
+format:
+   html: 
+      toc: true
+      code-copy: true
+      code-overflow: wrap
+execute:
+    echo: true
+    warning: false
+    message: false
+    freeze: auto
+---
+
+# DSAN-5300-Project-Group2
+
+## Risk Estimation Dataset Prediction & Model
+
+```{r}
+# Load library for R
+library(tidyverse)
+library(glmnet)
+```
+
+```{r}
+# Read the txt file
+data <- read.csv('../dataset/risk_estimation_clean.csv')
+head(data)
+```
+
+```{r}
+# Filter the unknown for column 'menopaus' for better split the demographic into two group
+# Filter the unknown for some column to make the data more intuitive
+data_clean <- data |>
+  filter(menopaus != 9, race!= 9, Hispanic!= 9, bmi != 9, agefirst != 9, nrelbc != 9, brstproc != 9, lastmamm != 9)
+```
+
+```{r}
+# Create the Premenopausal women Group
+women_pre <- data_clean |>
+  filter(menopaus == 0)
+# Create the Postmenopausal women Group
+women_post <- data_clean |>
+  filter(menopaus == 1)
+```
+
+## Model for Premenopausal Women
+
+```{r}
+# Drop columns 'cancer' bacuse it is similar to the column 'invasive' 
+women_pre <- women_pre |> select(-menopaus, -training, -cancer, -count)
+str(women_pre)
+```
+
+```{r}
+pre_model<- glm(invasive~ ., data = women_pre, family=binomial(link="logit"))
+```
+
+```{r}
+summary(pre_model)
+```
+
+```{r}
+# Drop column that are not important
+women_pre_new <- women_pre |> select(-surgmeno, -hrt, -density, -agefirst)
+str(women_pre_new)
+```
+
+```{r}
+pre_model_new<- glm(invasive~ ., data = women_pre_new, family=binomial(link="logit"))
+```
+
+```{r}
+summary(pre_model_new)
+```
+
+## Post
+
+```{r}
+# Drop columns 'cancer' bacuse it is similar to the column 'invasive' 
+women_post <- women_post |> select(-menopaus, -training, -cancer, -count)
+str(women_post)
+```
+
+```{r}
+post_model<- glm(invasive~ ., data = women_post, family=binomial(link="logit"))
+```
+
+```{r}
+summary(post_model)
+```
