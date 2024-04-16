@@ -1,0 +1,200 @@
+---
+title: "DSAN-5300-Project-Group2"
+author: "Yiwei Qi"
+date: last-modified
+date-format: long
+editor: visual
+format:
+  html:
+    embed-resources: true
+execute:
+    echo: true
+    warning: false
+    message: false
+    freeze: auto
+---
+
+# DSAN-5300-Project-Group2
+
+## Risk Estimation Clean
+
+```{r}
+# Load library for R
+library(tidyverse)
+```
+
+```{r}
+# Read the file
+data <- read.csv('../dataset/risk_estimation_clean.csv', header = TRUE)
+str(data)
+
+# Check the first few rows of the dataset
+head(data)
+
+
+```
+
+```{r}
+library(corrplot)
+library(RColorBrewer)
+data_numeric <- data %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.)))) %>%
+  select_if(~ !any(is.na(.)))
+
+correlations_with_cancer <- cor(data_numeric, use = "complete.obs")['cancer',]
+significant_vars <- names(which(abs(correlations_with_cancer) > 0.01))
+
+selected_data <- data_numeric[, significant_vars]
+cor_matrix <- cor(selected_data, use = "complete.obs")
+
+corrplot(cor_matrix, method = "color", type = "upper",
+         order = "hclust", tl.col = "black", tl.srt = 45,
+         col = colorRampPalette(brewer.pal(n = 11, name = "RdYlBu"))(200),
+         title = "Correlation Matrix of Variables Related to Cancer",
+         mar = c(2, 2, 2, 2))
+```
+This graph shows how a range of variables are related to cancer risk. In this heat map, blue represents a negative correlation, that is, as one variable increases, the other variable decreases; yellow represents a positive correlation, that is, the two variables change in the same direction. The darker the color, the stronger the correlation.
+
+As can be seen from this figure, there is a strong positive correlation between `density` (breast density) and `brstproc` (breast surgery history) and `cancer` (cancer diagnosis), that is, higher breast density or breast cancer Women with a history of surgery are at higher risk for breast cancer. Similarly, `agefirst` (age at first birth) also showed a significant negative association, which may mean that women who give birth at an early age have a lower risk of breast cancer.
+
+`bmi` (body mass index) and `nrelbc` (number of first-degree relatives with rheumatoid arthritis) also showed some negative correlation with rheumatoid arthritis risk, which may indicate that a lower BMI and no family history of rheumatoid arthritis may be Associated with a lower risk of milk gourd.
+
+We also note that some race-related variables, such as `race` and `Hispanic`, are not strongly associated with rheumatoid arthritis risk, which may suggest that the relationship between race and rheumatoid arthritis risk may be influenced by other socioeconomic or The influence of genetic factors.
+
+
+```{r}
+library(tidyverse)
+library(gridExtra) # For arranging plots
+library(grid) 
+# Load necessary libraries
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+
+
+# Exclude 'cancer' variable and any other non-predictive variables if present
+predictive_variables <- setdiff(names(data), c("cancer", "other_non_predictive_variables","count"))
+
+# Define a function to create plots for each variable
+create_plot <- function(var_name, data) {
+  cancer_rates <- data %>%
+    group_by(!!sym(var_name)) %>%
+    summarise(Cancer_Rate = mean(cancer, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(Variable = factor(!!sym(var_name), levels = unique(!!sym(var_name))))
+
+  # Generate a plot for each variable
+  ggplot(cancer_rates, aes(x = Variable, y = Cancer_Rate)) +
+    geom_line(aes(group = 1)) +
+    geom_point(aes(color = Variable), size = 1) +
+    scale_color_viridis_d() +
+    labs(x = var_name, y = NULL) +  # Remove the y label as it's redundant
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, size = 8),
+      axis.text.y = element_text(size = 8),
+      plot.title = element_text(size = 10, hjust = 0.5),
+      legend.position = "none"
+    )
+}
+
+# Create the list of plots
+plot_list <- lapply(predictive_variables, function(var) create_plot(var, data))
+
+# Arrange the plots in a grid with enough space and remove redundant plots
+n_cols <- 3
+n_rows <- ceiling(length(plot_list) / n_cols)
+grid_plots <- gridExtra::grid.arrange(grobs = plot_list, ncol = n_cols, nrow = n_rows)
+
+
+
+
+
+```
+
+
+
+```{r}
+selected_vars <- data %>% select(agegrp, bmi, density, cancer)
+ggpairs(selected_vars, mapping = aes(color = factor(cancer)), 
+        title = "Scatterplot Matrix for Key Risk Factors and Cancer")
+```
+
+
+```{r}
+data <- read.csv('../dataset/risk_estimation_clean.csv', header = TRUE)
+
+# 检查是否有缺失值
+summary(data)
+
+# 检查bmi和agegrp变量的范围
+range(data$bmi, na.rm = TRUE)
+range(data$agegrp, na.rm = TRUE)
+
+# 移除bmi和agegrp中的NA值
+data <- na.omit(data)
+
+# 使用geom_point()来检查数据的分布
+ggplot(data, aes(x = bmi, y = agegrp, color = factor(cancer))) +
+  geom_point(alpha = 0.5) +
+  scale_color_manual(values = c("0" = "grey", "1" = "blue"), labels = c("No Cancer", "Cancer")) +
+  labs(x = "Body Mass Index (BMI)", y = "Age Group", color = "Cancer Status", 
+       title = "Relationship Between BMI, Age, and Breast Cancer Status") +
+  theme_minimal()
+```
+
+
+```{r}
+data <- read.csv('../dataset/risk_estimation_clean.csv', header = TRUE)
+
+data_numeric <- data %>%
+  mutate(across(everything(), as.numeric))
+library(RColorBrewer)
+data <- dplyr::select(data, agegrp, density, bmi, cancer)
+
+age_density_cancer <- data %>%
+  dplyr::group_by(agegrp, density) %>%
+  dplyr::summarise(cancer_rate = mean(cancer, na.rm = TRUE), .groups = 'drop')
+
+ggplot(age_density_cancer, aes(x = factor(density), y = factor(agegrp), fill = cancer_rate)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = brewer.pal(8, "BuGn")) +
+  labs(x = "Breast Density", y = "Age Group", title = "Cancer Rate by Age and Breast Density") +
+  theme_minimal()
+```
+
+```{r}
+library(corrplot)
+library(RColorBrewer)
+
+data_numeric <- data %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.)))) %>%
+  select_if(~ !any(is.na(.)))
+
+cor_matrix <- cor(data_numeric, use = "complete.obs")
+
+corrplot(cor_matrix, method = "color", type = "upper",
+         order = "hclust", tl.col = "black", tl.srt = 45,
+         col = colorRampPalette(brewer.pal(n = 11, name = "RdYlBu"))(200),
+         title = "Correlation Matrix of Variables",
+         mar = c(2, 2, 2, 2))
+
+
+```
+
+
+```{r}
+data$agegrp <- as.factor(data$agegrp)
+data$density <- as.numeric(data$density)
+
+ggplot(data, aes(x = density, y = agegrp, fill = agegrp)) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_brewer(palette = "Blues") +
+  labs(x = "Breast Density", y = "Age Group", title = "Breast Density Distribution by Age Group") +
+  theme_ridges(font_family = "sans", grid = FALSE) +
+  theme(legend.position = "none")
+```
+
+
+
+
