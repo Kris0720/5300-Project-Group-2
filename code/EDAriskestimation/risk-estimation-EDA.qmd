@@ -19,123 +19,189 @@ execute:
 ## Risk Estimation Clean
 
 ```{r}
+# ignore warning
+options(warn=-1)
+
 # Load library for R
 library(tidyverse)
-```
-
-```{r}
-# Read the file
-data <- read.csv('../../dataset/risk_estimation_clean.csv', header = TRUE)
-
-```
-
-```{r}
-library(tidyverse)
-library(gridExtra)
-library(grid) 
-library(ggplot2)
-data_numeric <- data %>%
-  mutate(across(everything(), ~ as.numeric(as.character(.)))) %>%
-  select_if(~ !any(is.na(.)))
-predictive_variables <- setdiff(names(data), c("cancer", "other_non_predictive_variables","count"))
-
-create_plot <- function(var_name, data) {
-  cancer_rates <- data %>%
-    group_by(!!sym(var_name)) %>%
-    summarise(Cancer_Rate = mean(cancer, na.rm = TRUE)) %>%
-    ungroup() %>%
-    mutate(Variable = factor(!!sym(var_name), levels = unique(!!sym(var_name))))
-
-  ggplot(cancer_rates, aes(x = Variable, y = Cancer_Rate)) +
-    geom_line(aes(group = 1)) +
-    geom_point(aes(color = Variable), size = 1) +
-    scale_color_viridis_d() +
-    labs(x = var_name, y = NULL) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 90, vjust = 0.5, size = 8),
-      axis.text.y = element_text(size = 8),
-      plot.title = element_text(size = 10, hjust = 0.5),
-      legend.position = "none"
-    )
-}
-
-plot_list <- lapply(predictive_variables, function(var) create_plot(var, data))
-
-n_cols <- 3
-n_rows <- ceiling(length(plot_list) / n_cols)
-grid_plots <- gridExtra::grid.arrange(grobs = plot_list, ncol = n_cols, nrow = n_rows)
-
-```
-
-This graph shows the relationship between multiple variables and breast cancer incidence. For example, the "agegrp" variable shows the incidence of breast cancer in different age groups, the "density" variable shows the incidence at different breast densities, and the color-coded points represent the incidence at each level.
-
-Using this graph, we can discover variables that are more likely to be associated with breast cancer. For example, "lastmamm" and "invasive" appear to have strong correlations with breast cancer, while conversely, "agegroup" trend not large, suggesting that this variablp may not be very critical in predicting breast cancer risk.
-
-```{r}
 library(corrplot)
 library(RColorBrewer)
 
+# read data
+data <- read.csv('../../dataset/risk_estimation_clean.csv', header = TRUE)
 
+# numeric data
+data_numeric <- data %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.)))) %>%
+  select_if(~ !any(is.na(.)))
+
+#correlation
 correlations_with_cancer <- cor(data_numeric, use = "complete.obs")['cancer',]
 significant_vars <- names(which(abs(correlations_with_cancer) > 0.01))
 
 selected_data <- data_numeric[, significant_vars]
 cor_matrix <- cor(selected_data, use = "complete.obs")
 
+#corr plot
 corrplot(cor_matrix, method = "color", type = "upper",
-         order = "hclust", tl.col = "black",
+         order = "hclust", tl.col = "black", tl.srt = 45,
+         col = colorRampPalette(brewer.pal(n = 11, name = "RdYlBu"))(200),
+         title = "Correlation Matrix of Variables Related to Cancer",
+         mar = c(2, 2, 2, 2))
+
+```
+
+```{r}
+library(corrplot)
+library(RColorBrewer)
+
+# numeric data
+data_numeric <- data %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.)))) %>%
+  select_if(~ !any(is.na(.)))
+
+#correlation
+correlations_with_cancer <- cor(data_numeric, use = "complete.obs")['cancer',]
+significant_vars <- names(which(abs(correlations_with_cancer) > 0.01))
+
+selected_data <- data_numeric[, significant_vars]
+cor_matrix <- cor(selected_data, use = "complete.obs")
+
+#corr plot
+corrplot(cor_matrix, method = "color", type = "upper",
+         order = "hclust", tl.col = "black", tl.srt = 45,
          col = colorRampPalette(brewer.pal(n = 11, name = "RdYlBu"))(200),
          title = "Correlation Matrix of Variables Related to Cancer",
          mar = c(2, 2, 2, 2))
 ```
 
-This graph shows how a range of variables are related to cancer risk. In this heat map, blue represents a negative correlation, that is, as one variable increases, the other variable decreases; yellow represents a positive correlation, that is, both variables change in the same direction. The darker the color, the stronger the correlation.
-
-As can be seen from this figure, there is a strong positive correlation between invasive and cancer. Lastmanmm, race and Hispanic also show a certain correlation with cancer.
-
 ```{r}
-
 library(tidyverse)
-library(ggplot2)
-library(RColorBrewer)
+library(gridExtra)
+library(grid)
 
-generate_heatmap <- function(data, var1, var2) {
-  heatmap_data <- data %>%
-    group_by(!!sym(var1), !!sym(var2)) %>%
-    summarise(cancer_rate = mean(cancer, na.rm = TRUE), .groups = "drop") %>%
-    ungroup()
+# set data 
+data <- dplyr::select(data, agegrp, density, bmi, cancer)
 
-  ggplot(heatmap_data, aes(x = !!sym(var1), y = !!sym(var2), fill = cancer_rate)) +
-    geom_tile() +
-    scale_fill_gradientn(colors = brewer.pal(9, "Spectral")) +
-    labs(title = paste("Cancer Rate by", var1, "and", var2), x = var1, y = var2) +
+predictive_variables <- setdiff(names(data), c("cancer", "other_non_predictive_variables", "count"))
+
+# unit label
+create_plots <- function(var_name, data) {
+  unit <- ifelse(var_name == "agegrp" || var_name == "density", "group number", "value")
+  
+  var_data <- data %>%
+    select(!!sym(var_name), cancer) %>%
+    drop_na()
+
+  # hist plot
+  hist_plot <- ggplot(var_data, aes(x = !!sym(var_name))) +
+    geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+    labs(title = paste("Distribution of", var_name), x = paste(var_name, "(", unit, ")"), y = "Count(Cases)") +
     theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 45, vjust = 1),
-      axis.text.y = element_text(angle = 45, hjust = 1),
-      plot.title = element_text(size = 14, face = "bold")
-    ) +
-    coord_fixed(ratio = 1)
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          axis.title.x = element_text(size = 8),
+          axis.title.y = element_text(size = 8),
+          plot.title = element_text(size = 10, hjust = 0.5))
+
+  # box plot
+  box_plot <- ggplot(var_data, aes(x = factor(0), y = !!sym(var_name))) +
+    geom_boxplot(fill = "tomato") +
+    labs(title = paste("Boxplot of", var_name), y = "Group number") +
+    theme_minimal() +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          plot.title = element_text(size = 10, hjust = 0.5))
+
+  # cancer rate plot
+  cancer_rate_plot <- data %>%
+    group_by(!!sym(var_name)) %>%
+    summarise(Cancer_Rate = mean(cancer, na.rm = TRUE), .groups = 'drop') %>%
+    ggplot(aes(x = !!sym(var_name), y = Cancer_Rate)) +
+    geom_line(group = 1, color = "blue") +
+    geom_point(color = "red", size = 1) +
+    labs(x = paste(var_name, "(", unit, ")"), y = "Cancer Rate(%)", title = paste("Cancer Rate vs", var_name)) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 8),
+          axis.title.x = element_text(size = 8),
+          axis.title.y = element_text(size = 8),
+          plot.title = element_text(size = 10, hjust = 0.5))
+
+  # combine plot
+  combined_plot <- gridExtra::arrangeGrob(hist_plot, box_plot, cancer_rate_plot, ncol = 3, widths = c(2, 1, 2))
+
+  return(combined_plot)
 }
 
+# list
+plot_list <- lapply(predictive_variables, function(var) create_plots(var, data))
+n_cols <- 1
+n_rows <- length(plot_list)
+grid_plots <- gridExtra::grid.arrange(grobs = plot_list, ncol = n_cols, nrow = n_rows, heights = lapply(plot_list, function(x) 12))  # adjust height
 
-variable_pairs <- list(
-  c("invasive", "lastmamm"),
-  c("invasive", "race"),
-  c("invasive", "Hispanic"),
-  c("lastmamm", "race"),
-  c("lastmamm", "Hispanic"),
-  c("race", "Hispanic")
-)
 
-for(pair in variable_pairs) {
-  plot <- generate_heatmap(data, pair[1], pair[2])
-  print(plot)
-}
 
 
 
 ```
 
-In the previous part, we found that invasive, Lastmanmm, race and Hispanic showed correlation with cancer in the heat map. In this part, we explore the relationship between combinations of different variables and cancer. It can be seen that some specific combinations have much higher cancer rates than others.
+```{r}
+# library
+library(ggplot2)
+library(dplyr)
+
+# read data
+data <- read.csv('../../dataset/risk_estimation_clean.csv', header = TRUE)
+
+# correlations
+correlations <- data %>%
+  summarise(
+    Race_Hispanic = cor(race, Hispanic, method = "pearson"),
+    Cancer_Invasive = cor(cancer, invasive, method = "pearson"),
+    nrelbc_BMI = cor(nrelbc, bmi, method = "pearson"),
+    BMI_agegroup = cor(bmi, agegrp, method = "pearson"),
+    BRF_agegroup = cor(density, agegrp, method = "pearson"),
+    Race_BMI = cor(race, bmi, method = "pearson")
+  )
+
+#plot
+plot_data <- data.frame(
+  Variable_Combination = c("Race and Hispanic", "Cancer and Invasive", "nrelbc and BMI", "BMI and agegroup", "Brease Density and Age Group","Race and BMI"),
+  Correlation = c(correlations$Race_Hispanic, correlations$Cancer_Invasive, correlations$nrelbc_BMI, correlations$BRF_agegroup, correlations$Race_BMI, correlations$Race_BMI)
+)
+
+# ggplot
+ggplot(plot_data, aes(x = Variable_Combination, y = Correlation, color = Correlation)) +
+  geom_point(size = 5) +  # point size
+  geom_line(group = 1) +  # line
+  labs(title = "Correlation of Variable Combinations with Cancer",
+       x = "Variable Combination",
+       y = "Correlation") +
+  theme_minimal() +  # theme
+  scale_color_gradient(low = "red", high = "blue") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+```
+
+```{r}
+# read data
+data <- read.csv('../../dataset/risk_estimation_clean.csv', header = TRUE)
+
+data_numeric <- data %>%
+  mutate(across(everything(), as.numeric))
+library(RColorBrewer)
+data <- dplyr::select(data, agegrp, density, bmi, cancer)
+
+age_density_cancer <- data %>%
+  dplyr::group_by(agegrp, density) %>%
+  dplyr::summarise(cancer_rate = mean(cancer, na.rm = TRUE), .groups = 'drop')
+
+# plot correlation
+ggplot(age_density_cancer, aes(x = factor(density), y = factor(agegrp), fill = cancer_rate)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = brewer.pal(8, "BuGn")) +
+  labs(x = "Breast Density (Group Number)", y = "Age Group (Group Number)", title = "Cancer Rate by Age and Breast Density") +
+  theme_minimal()
+```
